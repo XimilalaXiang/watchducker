@@ -29,11 +29,17 @@ func NewContainerService(clientManager *ClientManager) *ContainerService {
 }
 
 // createContainerInfo 创建容器信息结构体
-func (cs *ContainerService) createContainerInfo(container dockerTypes.Container, name string) types.ContainerInfo {
+func (cs *ContainerService) createContainerInfo(ctx context.Context, container dockerTypes.Container, name string) types.ContainerInfo {
+	imageName := container.Image
+	if strings.HasPrefix(imageName, "sha256:") {
+		if inspected, err := cs.clientManager.GetClient().ContainerInspect(ctx, container.ID); err == nil && inspected.Config.Image != "" {
+			imageName = inspected.Config.Image
+		}
+	}
 	return types.ContainerInfo{
-		ID:     container.ID[:12], // 使用短ID
+		ID:     container.ID[:12],
 		Name:   name,
-		Image:  container.Image,
+		Image:  imageName,
 		Labels: container.Labels,
 		State:  container.State,
 	}
@@ -63,7 +69,7 @@ func (cs *ContainerService) GetByName(ctx context.Context, containerNames []stri
 
 			for _, containerName := range containerNames {
 				if normalizedName == containerName {
-					containerInfo := cs.createContainerInfo(container, normalizedName)
+					containerInfo := cs.createContainerInfo(ctx, container, normalizedName)
 					result = append(result, containerInfo)
 					break // 找到匹配后跳出内层循环
 				}
@@ -103,7 +109,7 @@ func (cs *ContainerService) GetByLabel(ctx context.Context, labelKey, labelValue
 			normalizedName = normalizedName[1:]
 		}
 
-		containerInfo := cs.createContainerInfo(container, normalizedName)
+		containerInfo := cs.createContainerInfo(ctx, container, normalizedName)
 		result = append(result, containerInfo)
 	}
 
@@ -201,7 +207,7 @@ func (cs *ContainerService) GetAll(ctx context.Context, includeStopped bool) ([]
 			normalizedName = normalizedName[1:]
 		}
 
-		containerInfo := cs.createContainerInfo(container, normalizedName)
+		containerInfo := cs.createContainerInfo(ctx, container, normalizedName)
 		result = append(result, containerInfo)
 	}
 
