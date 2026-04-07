@@ -1,0 +1,20 @@
+services:
+  watchducker:
+    build: .
+    container_name: watchducker
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - watchducker_data:/data
+    ports:
+      - "8080:8080"
+    environment:
+      - TZ=Asia/Shanghai
+      - WATCHDUCKER_ALL=true
+      - WATCHDUCKER_CRON=0 2 * * *
+      - WATCHDUCKER_CLEAN=true
+      - WATCHDUCKER_WEB_PORT=8080
+      - WATCHDUCKER_DATA_DIR=/data
+
+volumes:
+  watchducker_data:

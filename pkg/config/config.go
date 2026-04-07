@@ -23,6 +23,10 @@ type Config struct {
 	noRestart          bool     `mapstructure:"no_restart"`
 	includeStopped     bool     `mapstructure:"include_stopped"`
 	disabledContainers string   `mapstructure:"disabled_containers"`
+	webPort            int      `mapstructure:"web_port"`
+	dataDir            string   `mapstructure:"data_dir"`
+	authUsername       string   `mapstructure:"username"`
+	authPassword       string   `mapstructure:"password"`
 }
 
 // 全局配置实例（只读，初始化后不可修改）
@@ -104,6 +108,31 @@ func (c *Config) DisabledContainers() []string {
 	return strings.Split(c.disabledContainers, ",")
 }
 
+// WebPort 获取 Web UI 端口
+func (c *Config) WebPort() int {
+	return c.webPort
+}
+
+// DataDir 获取数据目录
+func (c *Config) DataDir() string {
+	return c.dataDir
+}
+
+// AuthUsername 获取认证用户名
+func (c *Config) AuthUsername() string {
+	return c.authUsername
+}
+
+// AuthPassword 获取认证密码
+func (c *Config) AuthPassword() string {
+	return c.authPassword
+}
+
+// AuthEnabled 是否启用认证（设置了用户名和密码时启用）
+func (c *Config) AuthEnabled() bool {
+	return c.authUsername != "" && c.authPassword != ""
+}
+
 // loadConfig 执行实际的配置加载逻辑
 func loadConfig() (*Config, error) {
 	// 创建 Viper 实例
@@ -120,6 +149,10 @@ func loadConfig() (*Config, error) {
 	v.SetDefault("no-restart", false)
 	v.SetDefault("include-stopped", false)
 	v.SetDefault("disabled-containers", "")
+	v.SetDefault("web-port", 8080)
+	v.SetDefault("data-dir", "/data")
+	v.SetDefault("username", "")
+	v.SetDefault("password", "")
 
 	// 环境变量键名中的连字符替换为下划线
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
@@ -134,6 +167,10 @@ func loadConfig() (*Config, error) {
 	pflag.Bool("no-restart", false, "只更新镜像，不重启容器")
 	pflag.Bool("include-stopped", false, "检查时包含已停止的容器")
 	pflag.String("disabled-containers", "", "排除指定的容器，不进行检查和更新")
+	pflag.Int("web-port", 8080, "Web UI 监听端口")
+	pflag.String("data-dir", "/data", "数据存储目录")
+	pflag.String("username", "", "Web UI 登录用户名（留空则不启用认证）")
+	pflag.String("password", "", "Web UI 登录密码")
 
 	// 解析命令行参数
 	pflag.Parse()
@@ -153,6 +190,10 @@ func loadConfig() (*Config, error) {
 		cleanUp:            v.GetBool("clean"),
 		includeStopped:     v.GetBool("include-stopped"),
 		disabledContainers: v.GetString("disabled-containers"),
+		webPort:            v.GetInt("web-port"),
+		dataDir:            v.GetString("data-dir"),
+		authUsername:       v.GetString("username"),
+		authPassword:       v.GetString("password"),
 	}
 
 	// 设置日志级别
@@ -171,11 +212,11 @@ func loadConfig() (*Config, error) {
 
 // Validate 验证配置的有效性
 func (c *Config) validate() error {
-	// 验证至少需要一种检查方式
-	if len(c.containerNames) == 0 && !c.checkLabel && !c.checkAll && !c.checkLabelReversed {
-		return fmt.Errorf("必须指定容器名称或使用 --label 或 --all 或 --label-reversed 选项")
+	if c.runOnce {
+		if len(c.containerNames) == 0 && !c.checkLabel && !c.checkAll && !c.checkLabelReversed {
+			return fmt.Errorf("必须指定容器名称或使用 --label 或 --all 或 --label-reversed 选项")
+		}
 	}
-
 	return nil
 }
 
@@ -205,6 +246,8 @@ func PrintUsage() {
 	fmt.Println("  WATCHDUCKER_NO_RESTART          等同于 --no-restart 选项")
 	fmt.Println("  WATCHDUCKER_INCLUDE_STOPPED     等同于 --include-stopped 选项")
 	fmt.Println("  WATCHDUCKER_DISABLED_CONTAINERS 等同于 --disabled-containers 选项")
+	fmt.Println("  WATCHDUCKER_USERNAME            Web UI 登录用户名（留空则不启用认证）")
+	fmt.Println("  WATCHDUCKER_PASSWORD            Web UI 登录密码")
 	fmt.Println()
 	fmt.Println("参数:")
 	fmt.Println("  要检查的容器名称列表（支持多个）  <容器1> <容器2> ... ")

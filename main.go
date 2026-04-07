@@ -19,5 +19,5 @@ func main() {
 		return
 	}
 
-	cmd.RunCronScheduler(ctx)
+	cmd.RunWithWebUI(ctx)
 }

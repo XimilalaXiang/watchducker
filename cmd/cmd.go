@@ -2,9 +2,14 @@ package cmd
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"time"
 
 	"watchducker/internal/core"
+	"watchducker/internal/store"
 	"watchducker/internal/types"
+	"watchducker/internal/web"
 	"watchducker/pkg/config"
 	"watchducker/pkg/logger"
 	"watchducker/pkg/notify"
@@ -67,19 +72,15 @@ func RunOnce(ctx context.Context) {
 	}
 }
 
-// RunCronScheduler 运行定时调度器
+// RunCronScheduler 运行定时调度器（原有 CLI 模式，保持兼容）
 func RunCronScheduler(ctx context.Context) {
 	cfg := config.Get()
 
-	// 创建 cron 调度器
 	c := cron.New()
 
-	// 添加定时任务
 	_, err := c.AddFunc(cfg.CronExpression(), func() {
 		logger.Info("定时任务开始执行")
-
 		RunOnce(ctx)
-
 		logger.Info("定时任务执行完成")
 	})
 
@@ -90,11 +91,67 @@ func RunCronScheduler(ctx context.Context) {
 	logger.Info("定时任务已启动，cron 表达式: %s", cfg.CronExpression())
 	logger.Info("按 Ctrl+C 停止定时任务")
 
-	// 启动调度器
 	c.Start()
-
-	// 保持程序运行
 	select {}
+}
+
+// RunWithWebUI 启动带 Web UI 的模式（cron + HTTP 服务器）
+func RunWithWebUI(ctx context.Context) {
+	cfg := config.Get()
+
+	dataDir := cfg.DataDir()
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		logger.Fatal("创建数据目录失败: %v", err)
+	}
+
+	dbPath := filepath.Join(dataDir, "watchducker.db")
+	dataStore, err := store.New(dbPath)
+	if err != nil {
+		logger.Fatal("初始化数据库失败: %v", err)
+	}
+	defer dataStore.Close()
+
+	srv := web.NewServer(dataStore, cfg.WebPort())
+	srv.SetCronExpr(cfg.CronExpression())
+
+	hasCheckMode := len(cfg.ContainerNames()) > 0 || cfg.CheckAll() || cfg.CheckLabel() || cfg.CheckLabelReversed()
+
+	if hasCheckMode {
+		c := cron.New()
+		entryID, cronErr := c.AddFunc(cfg.CronExpression(), func() {
+			logger.Info("定时任务开始执行")
+			srv.RunScheduledCheck(ctx)
+			logger.Info("定时任务执行完成")
+			entries := c.Entries()
+			for _, e := range entries {
+				srv.SetNextRun(e.Next)
+				break
+			}
+		})
+		if cronErr != nil {
+			logger.Fatal("无效的 cron 表达式 '%s': %v", cfg.CronExpression(), cronErr)
+		}
+
+		c.Start()
+		logger.Info("定时任务已启动，cron 表达式: %s", cfg.CronExpression())
+
+		entries := c.Entries()
+		for _, e := range entries {
+			if e.ID == entryID {
+				srv.SetNextRun(e.Next)
+				break
+			}
+		}
+
+		go func() {
+			time.Sleep(2 * time.Second)
+			srv.RunScheduledCheck(ctx)
+		}()
+	}
+
+	if err := srv.Start(); err != nil {
+		logger.Fatal("Web 服务器启动失败: %v", err)
+	}
 }
 
 // RunChecker 创建并运行检查器的通用函数

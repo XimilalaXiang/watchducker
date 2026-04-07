@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WatchDucker</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f172a;--card:#1e293b;--border:#334155;--text:#e2e8f0;--text2:#94a3b8;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--radius:12px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.app{max-width:1200px;margin:0 auto;padding:20px}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:24px}
+header h1{font-size:24px;display:flex;align-items:center;gap:8px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center}
+.stat-card .value{font-size:36px;font-weight:700;margin-bottom:4px}
+.stat-card .label{color:var(--text2);font-size:14px}
+.stat-card.green .value{color:var(--green)}
+.stat-card.yellow .value{color:var(--yellow)}
+.stat-card.red .value{color:var(--red)}
+.stat-card.blue .value{color:var(--blue)}
+.actions{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap}
+.btn{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;transition:all .2s}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:#2563eb}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-secondary{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:#2d3b50}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{background:#dc2626}
+.section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:24px;overflow:hidden}
+.section-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.section-header h2{font-size:18px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--text2);font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500}
+.badge-green{background:rgba(34,197,94,.15);color:var(--green)}
+.badge-yellow{background:rgba(234,179,8,.15);color:var(--yellow)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--red)}
+.badge-blue{background:rgba(59,130,246,.15);color:var(--blue)}
+.badge-gray{background:rgba(148,163,184,.15);color:var(--text2)}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 20px;display:none;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.toast.show{display:block;animation:slideIn .3s ease}
+@keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.tabs{display:flex;gap:4px;margin-bottom:24px;background:var(--card);padding:4px;border-radius:10px;border:1px solid var(--border)}
+.tab{padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text2);transition:all .2s}
+.tab.active{background:var(--blue);color:#fff}
+.tab:hover:not(.active){color:var(--text)}
+.empty{text-align:center;padding:40px;color:var(--text2)}
+.ws-status{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2)}
+.ws-dot{width:8px;height:8px;border-radius:50%;background:var(--red)}
+.ws-dot.connected{background:var(--green)}
+#history-section,#settings-section{display:none}
+.setting-row{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid var(--border)}
+.setting-row:last-child{border-bottom:none}
+.setting-label{font-size:14px}
+.setting-value{color:var(--text2);font-size:14px}
+.mono{font-family:'JetBrains Mono',monospace;font-size:13px}
+.login-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:2000}
+.login-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.login-box h2{text-align:center;margin-bottom:8px;font-size:24px}
+.login-box .subtitle{text-align:center;color:var(--text2);margin-bottom:28px;font-size:14px}
+.login-box input{width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;margin-bottom:16px;outline:none;transition:border-color .2s}
+.login-box input:focus{border-color:var(--blue)}
+.login-box .btn{width:100%;padding:12px;font-size:15px}
+.login-error{color:var(--red);font-size:13px;text-align:center;margin-bottom:12px;display:none}
+.header-right{display:flex;align-items:center;gap:16px}
+.btn-logout{background:none;border:none;color:var(--text2);cursor:pointer;font-size:13px;padding:4px 8px}
+.btn-logout:hover{color:var(--red)}
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="login-overlay" style="display:none">
+  <div class="login-box">
+    <h2>🐤 WatchDucker</h2>
+    <p class="subtitle">请登录以继续</p>
+    <div class="login-error" id="login-error"></div>
+    <input type="text" id="login-user" placeholder="用户名" autocomplete="username">
+    <input type="password" id="login-pass" placeholder="密码" autocomplete="current-password">
+    <button class="btn btn-primary" id="btn-login" onclick="doLogin()">登录</button>
+  </div>
+</div>
+
+<div class="app" id="main-app" style="display:none">
+  <header>
+    <h1>🐤 WatchDucker</h1>
+    <div class="header-right">
+      <div class="ws-status"><span class="ws-dot" id="ws-dot"></span><span id="ws-text">断开</span></div>
+      <button class="btn-logout" id="btn-logout" style="display:none" onclick="doLogout()">登出</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('dashboard')">仪表板</div>
+    <div class="tab" onclick="showTab('history')">历史记录</div>
+    <div class="tab" onclick="showTab('settings')">设置</div>
+  </div>
+
+  <div id="dashboard-section">
+    <div class="stats">
+      <div class="stat-card blue"><div class="value" id="total-containers">-</div><div class="label">容器总数</div></div>
+      <div class="stat-card green"><div class="value" id="up-to-date">-</div><div class="label">已最新</div></div>
+      <div class="stat-card yellow"><div class="value" id="update-available">-</div><div class="label">可更新</div></div>
+      <div class="stat-card red"><div class="value" id="failed-count">-</div><div class="label">检查失败</div></div>
+      <div class="stat-card" style="--card-accent:var(--text2)"><div class="value" style="color:var(--text2)" id="local-count">-</div><div class="label">本地镜像</div></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="btn-check" onclick="triggerCheck()">立即检查</button>
+      <button class="btn btn-secondary" onclick="triggerUpdateAll()">全部更新</button>
+      <button class="btn btn-secondary" onclick="triggerClean()">清理镜像</button>
+    </div>
+
+    <div class="section">
+      <div class="section-header"><h2>容器列表</h2><span id="last-check-info" style="color:var(--text2);font-size:13px"></span></div>
+      <table>
+        <thead><tr><th>容器名称</th><th>镜像</th><th>状态</th><th>最后检查</th><th>操作</th></tr></thead>
+        <tbody id="container-table"><tr><td colspan="5" class="empty">加载中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="history-section">
+    <div class="section">
+      <div class="section-header"><h2>检查历史</h2></div>
+      <table>
+        <thead><tr><th>时间</th><th>类型</th><th>容器数</th><th>可更新</th><th>失败</th><th>耗时</th></tr></thead>
+        <tbody id="history-table"><tr><td colspan="6" class="empty">加载中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="settings-section">
+    <div class="section">
+      <div class="section-header"><h2>当前配置</h2></div>
+      <div id="settings-content"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let ws,authRequired=false;
+
+async function checkAuth(){
+  try{
+    const r=await fetch('/api/auth-status');
+    const d=await r.json();
+    authRequired=d.auth_required;
+    if(!d.auth_required||d.logged_in){
+      showMainApp();
+      if(d.auth_required)document.getElementById('btn-logout').style.display='inline';
+    }else{
+      document.getElementById('login-overlay').style.display='flex';
+      document.getElementById('main-app').style.display='none';
+      document.getElementById('login-user').focus();
+    }
+  }catch(e){showMainApp()}
+}
+
+function showMainApp(){
+  document.getElementById('login-overlay').style.display='none';
+  document.getElementById('main-app').style.display='block';
+  connectWS();refresh();
+}
+
+async function doLogin(){
+  const user=document.getElementById('login-user').value.trim();
+  const pass=document.getElementById('login-pass').value;
+  const errEl=document.getElementById('login-error');
+  errEl.style.display='none';
+  if(!user||!pass){errEl.textContent='请输入用户名和密码';errEl.style.display='block';return}
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})});
+    const d=await r.json();
+    if(r.ok){showMainApp();document.getElementById('btn-logout').style.display='inline'}
+    else{errEl.textContent=d.error||'登录失败';errEl.style.display='block';document.getElementById('login-pass').value='';document.getElementById('login-pass').focus()}
+  }catch(e){errEl.textContent='网络错误';errEl.style.display='block'}
+}
+
+async function doLogout(){
+  await fetch('/api/logout',{method:'POST'});
+  if(ws)ws.close();
+  document.getElementById('login-overlay').style.display='flex';
+  document.getElementById('main-app').style.display='none';
+  document.getElementById('login-user').value='';
+  document.getElementById('login-pass').value='';
+  document.getElementById('login-user').focus();
+}
+
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('login-overlay').style.display==='flex')doLogin()});
+
+function connectWS(){
+  const proto=location.protocol==='https:'?'wss:':'ws:';
+  ws=new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen=()=>{document.getElementById('ws-dot').classList.add('connected');document.getElementById('ws-text').textContent='已连接'};
+  ws.onclose=()=>{document.getElementById('ws-dot').classList.remove('connected');document.getElementById('ws-text').textContent='断开';setTimeout(connectWS,3000)};
+  ws.onmessage=(e)=>{
+    const msg=JSON.parse(e.data);
+    if(msg.type==='check_start')showToast('检查开始...');
+    if(msg.type==='check_done'){showToast(`检查完成: ${msg.total}个容器, ${msg.updated}个可更新`);refresh()}
+    if(msg.type==='update_done')showToast('更新完成');
+    if(msg.type==='clean_done')showToast('清理完成');
+    if(msg.type==='check_error')showToast('检查出错: '+msg.error);
+    if(msg.type==='update_error')showToast('更新出错: '+msg.error);
+    refresh()
+  }
+}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
+function showTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['dashboard','history','settings'][i]===name));
+  ['dashboard','history','settings'].forEach(n=>document.getElementById(n+'-section').style.display=n===name?'block':'none');
+  if(name==='history')loadHistory();
+  if(name==='settings')loadSettings()
+}
+async function api(path,method='GET'){
+  const r=await fetch('/api/'+path,{method});
+  if(r.status===401){checkAuth();throw new Error('unauthorized')}
+  return r.json()
+}
+function statusBadge(status){
+  const m={'up_to_date':['最新','green'],'update_available':['可更新','yellow'],'failed':['失败','red'],'local_image':['本地镜像','gray'],'unknown':['未知','gray']};
+  const[label,color]=m[status]||['未知','gray'];
+  return`<span class="badge badge-${color}">${label}</span>`
+}
+function fmtTime(t){if(!t)return'-';const d=new Date(t);return d.toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}
+async function refresh(){
+  try{
+    const s=await api('status');
+    document.getElementById('total-containers').textContent=s.total_containers||0;
+    document.getElementById('up-to-date').textContent=s.up_to_date||0;
+    document.getElementById('update-available').textContent=s.update_available||0;
+    document.getElementById('failed-count').textContent=s.failed||0;
+    document.getElementById('local-count').textContent=s.local_image||0;
+    if(s.next_run){const d=new Date(s.next_run);document.getElementById('next-run').textContent=d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}
+    if(s.last_check){document.getElementById('last-check-info').textContent=`上次检查: ${fmtTime(s.last_check.started_at)} | 耗时 ${s.last_check.duration_ms}ms`}
+    const c=await api('containers');
+    const tbody=document.getElementById('container-table');
+    if(!c.containers||c.containers.length===0){tbody.innerHTML='<tr><td colspan="5" class="empty">暂无容器数据，点击"立即检查"开始</td></tr>';return}
+    tbody.innerHTML=c.containers.map(ct=>`<tr>
+      <td><strong>${ct.name}</strong></td>
+      <td class="mono">${ct.image}</td>
+      <td>${statusBadge(ct.status)}</td>
+      <td style="color:var(--text2);font-size:13px">${fmtTime(ct.last_check)}</td>
+      <td><button class="btn btn-secondary" style="padding:4px 12px;font-size:12px" onclick="checkOne('${ct.name}')">检查</button>${ct.status==='update_available'?` <button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="updateOne('${ct.name}')">更新</button>`:''}</td>
+    </tr>`).join('')
+  }catch(e){if(e.message!=='unauthorized')console.error(e)}
+}
+async function loadHistory(){
+  const h=await api('history?limit=50');
+  const tbody=document.getElementById('history-table');
+  if(!h.history||h.history.length===0){tbody.innerHTML='<tr><td colspan="6" class="empty">暂无历史记录</td></tr>';return}
+  tbody.innerHTML=h.history.map(r=>`<tr>
+    <td>${fmtTime(r.started_at)}</td>
+    <td><span class="badge badge-${r.type==='scheduled'?'blue':'gray'}">${r.type==='scheduled'?'定时':'手动'}</span></td>
+    <td>${r.total}</td>
+    <td>${r.updated>0?`<span style="color:var(--yellow)">${r.updated}</span>`:0}</td>
+    <td>${r.failed>0?`<span style="color:var(--red)">${r.failed}</span>`:0}</td>
+    <td>${r.duration_ms}ms</td>
+  </tr>`).join('')
+}
+async function loadSettings(){
+  const s=await api('settings');
+  document.getElementById('settings-content').innerHTML=Object.entries(s).map(([k,v])=>`<div class="setting-row"><span class="setting-label">${k}</span><span class="setting-value mono">${v}</span></div>`).join('')
+}
+async function triggerCheck(){document.getElementById('btn-check').disabled=true;await api('check','POST');setTimeout(()=>document.getElementById('btn-check').disabled=false,3000)}
+async function triggerUpdateAll(){await api('update','POST')}
+async function triggerClean(){await api('clean','POST')}
+async function checkOne(name){await api(`containers/${name}/check`,'POST')}
+async function updateOne(name){if(confirm(`确认更新容器 ${name}？`))await api(`containers/${name}/update`,'POST')}
+checkAuth();
+setInterval(refresh,30000);
+</script>
+</body>
+</html>
