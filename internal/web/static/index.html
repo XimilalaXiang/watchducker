@@ -112,6 +112,7 @@ tr:last-child td{border-bottom:none}
       <button class="btn btn-primary" id="btn-check" onclick="triggerCheck()">立即检查</button>
       <button class="btn btn-secondary" onclick="triggerUpdateAll()">全部更新</button>
       <button class="btn btn-secondary" onclick="triggerClean()">清理镜像</button>
+      <span id="next-run" style="color:var(--text2);font-size:13px;align-self:center"></span>
     </div>
 
     <div class="section">
@@ -236,7 +237,7 @@ async function refresh(){
     document.getElementById('update-available').textContent=s.update_available||0;
     document.getElementById('failed-count').textContent=s.failed||0;
     document.getElementById('local-count').textContent=s.local_image||0;
-    if(s.next_run){const d=new Date(s.next_run);document.getElementById('next-run').textContent=d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}
+    if(s.next_run){const el=document.getElementById('next-run');if(el){const d=new Date(s.next_run);el.textContent='下次检查: '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}}
     if(s.last_check){document.getElementById('last-check-info').textContent=`上次检查: ${fmtTime(s.last_check.started_at)} | 耗时 ${s.last_check.duration_ms}ms`}
     const c=await api('containers');
     const tbody=document.getElementById('container-table');
