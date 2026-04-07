@@ -69,6 +69,11 @@ tr:last-child td{border-bottom:none}
 .header-right{display:flex;align-items:center;gap:16px}
 .btn-logout{background:none;border:none;color:var(--text2);cursor:pointer;font-size:13px;padding:4px 8px}
 .btn-logout:hover{color:var(--red)}
+.filter-bar{display:flex;gap:6px;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid var(--border)}
+.filter-btn{padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:12px;cursor:pointer;transition:all .2s}
+.filter-btn:hover{border-color:var(--blue);color:var(--text)}
+.filter-btn.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.filter-btn .count{margin-left:4px;opacity:.7}
 </style>
 </head>
 <body>
@@ -117,6 +122,13 @@ tr:last-child td{border-bottom:none}
 
     <div class="section">
       <div class="section-header"><h2>容器列表</h2><span id="last-check-info" style="color:var(--text2);font-size:13px"></span></div>
+      <div class="filter-bar" id="filter-bar" style="display:none">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">全部</button>
+        <button class="filter-btn" data-filter="failed" onclick="setFilter('failed')">失败</button>
+        <button class="filter-btn" data-filter="update_available" onclick="setFilter('update_available')">可更新</button>
+        <button class="filter-btn" data-filter="up_to_date" onclick="setFilter('up_to_date')">最新</button>
+        <button class="filter-btn" data-filter="local_image" onclick="setFilter('local_image')">本地镜像</button>
+      </div>
       <table>
         <thead><tr><th>容器名称</th><th>镜像</th><th>状态</th><th>最后检查</th><th>操作</th></tr></thead>
         <tbody id="container-table"><tr><td colspan="5" class="empty">加载中...</td></tr></tbody>
@@ -145,7 +157,7 @@ tr:last-child td{border-bottom:none}
 <div class="toast" id="toast"></div>
 
 <script>
-let ws,authRequired=false;
+let ws,authRequired=false,currentFilter='all',allContainers=[];
 
 async function checkAuth(){
   try{
@@ -229,6 +241,45 @@ function statusBadge(status){
   return`<span class="badge badge-${color}">${label}</span>`
 }
 function fmtTime(t){if(!t)return'-';const d=new Date(t);return d.toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}
+const statusOrder={failed:0,update_available:1,up_to_date:2,unknown:3,local_image:4};
+function sortContainers(list){
+  return list.slice().sort((a,b)=>{
+    const oa=statusOrder[a.status]??3,ob=statusOrder[b.status]??3;
+    if(oa!==ob)return oa-ob;
+    return a.name.localeCompare(b.name);
+  });
+}
+function setFilter(f){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b.dataset.filter===f));
+  renderContainers();
+}
+function updateFilterCounts(){
+  const counts={all:allContainers.length,failed:0,update_available:0,up_to_date:0,local_image:0};
+  allContainers.forEach(ct=>{if(counts[ct.status]!==undefined)counts[ct.status]++});
+  document.querySelectorAll('.filter-btn').forEach(b=>{
+    const f=b.dataset.filter;
+    const c=counts[f]||0;
+    const labels={all:'全部',failed:'失败',update_available:'可更新',up_to_date:'最新',local_image:'本地镜像'};
+    b.textContent=labels[f]+(f==='all'?` (${c})`:c>0?` (${c})`:'');
+  });
+}
+function renderContainers(){
+  const tbody=document.getElementById('container-table');
+  let list=sortContainers(allContainers);
+  if(currentFilter!=='all')list=list.filter(ct=>ct.status===currentFilter);
+  if(list.length===0){
+    tbody.innerHTML=`<tr><td colspan="5" class="empty">${allContainers.length===0?'暂无容器数据，点击"立即检查"开始':'该分类下无容器'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML=list.map(ct=>`<tr>
+    <td><strong>${ct.name}</strong></td>
+    <td class="mono">${ct.image}</td>
+    <td>${statusBadge(ct.status)}</td>
+    <td style="color:var(--text2);font-size:13px">${fmtTime(ct.last_check)}</td>
+    <td><button class="btn btn-secondary" style="padding:4px 12px;font-size:12px" onclick="checkOne('${ct.name}')">检查</button>${ct.status==='update_available'?` <button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="updateOne('${ct.name}')">更新</button>`:''}</td>
+  </tr>`).join('');
+}
 async function refresh(){
   try{
     const s=await api('status');
@@ -240,15 +291,10 @@ async function refresh(){
     if(s.next_run){const el=document.getElementById('next-run');if(el){const d=new Date(s.next_run);el.textContent='下次检查: '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}}
     if(s.last_check){document.getElementById('last-check-info').textContent=`上次检查: ${fmtTime(s.last_check.started_at)} | 耗时 ${s.last_check.duration_ms}ms`}
     const c=await api('containers');
-    const tbody=document.getElementById('container-table');
-    if(!c.containers||c.containers.length===0){tbody.innerHTML='<tr><td colspan="5" class="empty">暂无容器数据，点击"立即检查"开始</td></tr>';return}
-    tbody.innerHTML=c.containers.map(ct=>`<tr>
-      <td><strong>${ct.name}</strong></td>
-      <td class="mono">${ct.image}</td>
-      <td>${statusBadge(ct.status)}</td>
-      <td style="color:var(--text2);font-size:13px">${fmtTime(ct.last_check)}</td>
-      <td><button class="btn btn-secondary" style="padding:4px 12px;font-size:12px" onclick="checkOne('${ct.name}')">检查</button>${ct.status==='update_available'?` <button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="updateOne('${ct.name}')">更新</button>`:''}</td>
-    </tr>`).join('')
+    allContainers=c.containers||[];
+    document.getElementById('filter-bar').style.display=allContainers.length>0?'flex':'none';
+    updateFilterCounts();
+    renderContainers();
   }catch(e){if(e.message!=='unauthorized')console.error(e)}
 }
 async function loadHistory(){

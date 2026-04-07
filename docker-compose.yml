@@ -15,6 +15,10 @@ services:
       - WATCHDUCKER_CLEAN=true
       - WATCHDUCKER_WEB_PORT=8080
       - WATCHDUCKER_DATA_DIR=/data
+      # - WATCHDUCKER_SETTING_PUSH_SERVER=telegram
+      # - WATCHDUCKER_TELEGRAM_API_URL=api.telegram.org
+      # - WATCHDUCKER_TELEGRAM_BOT_TOKEN=your_bot_token
+      # - WATCHDUCKER_TELEGRAM_CHAT_ID=your_chat_id
 
 volumes:
   watchducker_data:
