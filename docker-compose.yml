@@ -1,6 +1,6 @@
 services:
   watchducker:
-    build: .
+    image: ghcr.io/ximilalaxiang/watchducker:latest
     container_name: watchducker
     restart: unless-stopped
     volumes:
